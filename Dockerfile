@@ -18,6 +18,7 @@ FROM alpine
 LABEL maintainer="Acris Liu <acrisliu@gmail.com>"
 
 ENV SHADOWSOCKS_LIBEV_VERSION v3.3.4
+ENV SIMPLE_OBFS_VERSION master
 
 # Build shadowsocks-libev
 RUN set -ex \
@@ -37,6 +38,23 @@ RUN set -ex \
                udns-dev \
                c-ares-dev \
                git \
+    # Build simple-obfs
+    && mkdir -p /tmp/build-simple-obfs \
+    && cd /tmp/build-simple-obfs \
+    && git clone https://github.com/shadowsocks/simple-obfs.git \
+    && cd simple-obfs \
+    && git checkout "$SIMPLE_OBFS_VERSION" \
+    && git submodule update --init --recursive \
+    && ./autogen.sh \
+    && ./configure --disable-documentation \
+    && make install \
+    && obfsRunDeps="$( \
+        scanelf --needed --nobanner /usr/local/bin/obfs-server \
+            | awk '{ gsub(/,/, "\nso:", $2); print "so:" $2 }' \
+            | xargs -r apk info --installed \
+            | sort -u \
+    )" \
+    && apk add --no-cache --virtual .obfs-rundeps $ssRunDeps \
     # Build shadowsocks-libev
     && mkdir -p /tmp/build-shadowsocks-libev \
     && cd /tmp/build-shadowsocks-libev \
